@@ -21,7 +21,7 @@ Every tool in it is built around one problem — the amnesia problem. The gap be
 | Web app (works on everything) | [babuanon.github.io/thesystem](https://babuanon.github.io/thesystem) |
 | Android APK | [Releases](https://github.com/BabuAnon/thesystem/releases) |
 | Windows installer | [Releases](https://github.com/BabuAnon/thesystem/releases) |
-| Printable PDF | [the-system-printable.pdf](https://babuanon.github.io/thesystem/the-system-printable.pdf) |
+| Printable PDF | [[the-system-printable.pdf](https://github.com/BabuAnon/thesystem/blob/main/the-system-printable%20(1).pdf)) |
 
 No account. No login. No data leaves your device.
 
