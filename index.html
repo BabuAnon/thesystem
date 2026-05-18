@@ -1089,14 +1089,14 @@ function renderEL(listId,sk,ph){
   const el=document.getElementById(listId);if(!el)return;
   const items=g(sk,[]);
   if(!items.length){el.innerHTML='';return;}
-  el.innerHTML=items.map((item,i)=>`<div class="eitem"><div class="etxt" contenteditable="true" data-key="${sk}" data-idx="${i}" data-ph="${ph||'Write here...'}" onblur="saveEE(this)">${item||''}</div><button class="edel" onclick="delE('${sk}',${i},'${listId}','${ph||''}')">×</button></div>`).join('');
+  el.innerHTML=items.map((item,i)=>`<div class="eitem"><div class="etxt" contenteditable="true" data-key="${sk}" data-idx="${i}" data-ph="${ph||'Write here...'}" onblur="saveEE(this)">${(typeof item==='object'?item.text:item)||''}</div><button class="edel" onclick="delE('${sk}',${i},'${listId}','${ph||''}')">×</button></div>`).join('');
 }
 function addE(listId,sk,ph){
   const items=g(sk,[]);items.push('');s(sk,items);renderEL(listId,sk,ph);
   const el=document.getElementById(listId);if(el){const last=el.querySelectorAll('.etxt');if(last.length)last[last.length-1].focus();}
 }
-function saveEE(el){const items=g(el.dataset.key,[]);items[parseInt(el.dataset.idx)]=el.innerText.trim();s(el.dataset.key,items);}
-function delE(sk,idx,listId,ph){const items=g(sk,[]);items.splice(idx,1);s(sk,items);renderEL(listId,sk,ph);}
+function saveEE(el){const items=g(el.dataset.key,[]);const i=parseInt(el.dataset.idx);if(typeof items[i]==='object')items[i].text=el.innerText.trim();else items[i]=el.innerText.trim();s(el.dataset.key,items);}
+function delE(sk,idx,listId,ph){const items=g(sk,[]);items.splice(idx,1);s(sk,items);renderEL(listId,sk,ph);if(sk==='wia-dc')refreshTodayDC();}
 
 /* LEARNING LISTS */
 function renderLL(listId,sk,ph){
