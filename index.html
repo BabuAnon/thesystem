@@ -919,12 +919,25 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
       <div class="more-label" id="pin-setup-label">Set Privacy PIN</div>
       <div class="more-desc">Lock app on launch</div>
     </button>
+    <button class="more-item" onclick="openInsights()">
+      <div class="more-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg></div>
+      <div class="more-label">Insights Dashboard</div>
+      <div class="more-desc">Your data mapped</div>
+    </button>
   </div>
 </div>
 </div><!-- /desk-content -->
 
 
 <!-- SHEETS -->
+<div class="overlay" id="insights-sheet" onclick="mc(event,'insights-sheet')">
+  <div class="sheet">
+    <div class="shandle"></div>
+    <div class="stitle serif">Data Insights</div>
+    <div id="insights-content">Loading...</div>
+    <div class="sfoot"><button class="btn btn-gh btn-full" onclick="closeSheet('insights-sheet')">Close</button></div>
+  </div>
+</div>
 <div class="overlay" id="sv-sheet" onclick="mc(event,'sv-sheet')"><div class="sheet"><div class="shandle"></div><div class="stitle serif">Add a problem</div><div class="fl">Name it</div><input class="inp" id="sv-name-inp" placeholder="e.g. Her. Career anxiety. Self-sabotage." style="margin-bottom:13px;" onkeydown="if(event.key==='Enter'){event.preventDefault();createProblem();}"><div class="sfoot"><button class="btn btn-gh" onclick="closeSheet('sv-sheet')">Cancel</button><button class="btn btn-g" onclick="createProblem()" style="flex:2;">Create</button></div></div></div>
 
 <div class="overlay" id="dl-sheet" onclick="mc(event,'dl-sheet')">
@@ -2338,6 +2351,50 @@ function renderSparkline(){
 }
 
 /* ═══ END GAMIFICATION ═══ */
+
+/* ═══ INSIGHTS HUB ═══ */
+function openInsights(){
+  try{ closeMore(); }catch(e){}
+  const el = document.getElementById('insights-content');
+  if(!el) return;
+  
+  // Calculate Stats
+  const probs = g('problems',[]);
+  const solvedCount = probs.filter(p=>p.solved).length;
+  const activeProbs = probs.length - solvedCount;
+  
+  const getUps = g('getup-count', 0);
+  
+  const suHist = g('su-hist',[]);
+  const avgHitRate = suHist.length ? Math.round(suHist.reduce((acc, w)=>acc+w.pct, 0) / suHist.length) : 0;
+  
+  const deads = g('deadlines',[]);
+  const metDeads = deads.filter(d=>d.achieved).length;
+  const activeDeads = deads.length - metDeads;
+
+  el.innerHTML = `
+    <div class="srow" style="margin-bottom:16px;">
+      <div class="sc"><div class="sv">${avgHitRate}%</div><div class="sl">Avg Hit Rate</div></div>
+      <div class="sc"><div class="sv">${getUps}</div><div class="sl">Get Ups</div></div>
+      <div class="sc"><div class="sv">${solvedCount}</div><div class="sl">Probs Solved</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:11px;">
+      <div class="card card-g" style="padding:16px;margin:0;">
+        <div style="font-family:'DM Mono',monospace;font-size:9.5px;letter-spacing:.1em;color:var(--gold3);margin-bottom:4px;text-transform:uppercase;">Deadlines Met</div>
+        <div style="font-size:24px;color:var(--t1);font-family:var(--mono);">${metDeads}</div>
+      </div>
+      <div class="card" style="padding:16px;margin:0;border-color:var(--green);background:rgba(74,124,90,.05);">
+        <div style="font-family:'DM Mono',monospace;font-size:9.5px;letter-spacing:.1em;color:var(--green);margin-bottom:4px;text-transform:uppercase;">Win Ratio</div>
+        <div style="font-size:24px;color:var(--t1);font-family:var(--mono);">${deads.length ? Math.round((metDeads/deads.length)*100) : 0}%</div>
+      </div>
+    </div>
+    <div class="card card-r" style="padding:16px;margin:0;">
+      <div style="font-family:'DM Mono',monospace;font-size:9.5px;letter-spacing:.1em;color:var(--red);margin-bottom:6px;text-transform:uppercase;">Active Battles</div>
+      <div style="font-size:13px;color:var(--t2);line-height:1.6;">You are currently fighting <strong>${activeProbs}</strong> active problems and tracking <strong>${activeDeads}</strong> approaching deadlines.</div>
+    </div>
+  `;
+  openSheet('insights-sheet');
+}
 
 /* ═══ PRIVACY LOCK ═══ */
 function checkLock(){
