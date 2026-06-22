@@ -521,6 +521,10 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
         <button class="thbtn thbtn-dim" id="th-dim2" onclick="setTheme('dim')" title="Dim"></button>
       </div>
     </div>
+    <button class="desk-bottom-btn" onclick="togglePinSetup()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="13" height="13" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+      <span id="desk-pin-label">Set Privacy PIN</span>
+    </button>
     <button class="desk-bottom-btn" id="desk-sun-btn" onclick="openSunday()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="13" height="13" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       Sunday Review
@@ -2311,6 +2315,27 @@ function checkPIN(){
   }
 }
 function togglePinSetup(){
+  try{ closeMore(); }catch(e){} // Safe close
+  if(g('app-pin', null)){
+    if(confirm('Remove your current Privacy PIN?')){
+      s('app-pin', null);
+      toast('PIN removed. App is now unlocked.');
+      const dl = document.getElementById('desk-pin-label');
+      if(dl) dl.textContent = 'Set Privacy PIN';
+    }
+  } else {
+    const p = prompt('Enter a numeric PIN (at least 4 digits):');
+    if(p && p.trim().length >= 4){
+      s('app-pin', p.trim());
+      checkLock(); 
+      toast('PIN set. The System is now locked.');
+      const dl = document.getElementById('desk-pin-label');
+      if(dl) dl.textContent = 'Remove PIN Lock';
+    } else if(p) {
+      toast('PIN too short. Cancelled.');
+    }
+  }
+}
   closeMore();
   if(g('app-pin', null)){
     if(confirm('Remove your current Privacy PIN?')){
@@ -2518,6 +2543,8 @@ async function init(){
   await recoverState();
   load();runMigrations();initCrossTab();loadTheme();
   checkLock();
+  const dpl = document.getElementById('desk-pin-label');
+  if(dpl) dpl.textContent = g('app-pin', null) ? 'Remove PIN Lock' : 'Set Privacy PIN';
   if(!g('onboarded',false))document.getElementById('onboard').classList.add('on');
   // Always open Today first — no exceptions
   showPg('today',document.getElementById('nb-today'));
