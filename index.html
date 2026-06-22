@@ -2064,13 +2064,45 @@ function finSun(){
 function closeSun(){document.getElementById('sun-ov').classList.remove('on');}
 
 /* EXPORT / IMPORT */
+/* ═══ ENCRYPTION UTILS ═══ */
+async function _deriveKey(pwd, salt) {
+  const enc = new TextEncoder();
+  const keyMat = await crypto.subtle.importKey("raw", enc.encode(pwd), {name: "PBKDF2"}, false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({name: "PBKDF2", salt: salt, iterations: 100000, hash: "SHA-256"}, keyMat, {name: "AES-GCM", length: 256}, false, ["encrypt", "decrypt"]);
+}
+function _btoa(buf) { let b = ''; const u = new Uint8Array(buf); for(let i=0;i<u.byteLength;i++) b+=String.fromCharCode(u[i]); return btoa(b); }
+function _atob(b64) { const b = atob(b64); const u = new Uint8Array(b.length); for(let i=0;i<b.length;i++) u[i]=b.charCodeAt(i); return u.buffer; }
+
+async function encryptData(text, pwd) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await _deriveKey(pwd, salt);
+  const data = await crypto.subtle.encrypt({name: "AES-GCM", iv: iv}, key, new TextEncoder().encode(text));
+  return JSON.stringify({ isEncrypted: true, salt: _btoa(salt), iv: _btoa(iv), data: _btoa(data) }, null, 2);
+}
+
+async function decryptData(obj, pwd) {
+  const key = await _deriveKey(pwd, _atob(obj.salt));
+  const dec = await crypto.subtle.decrypt({name: "AES-GCM", iv: _atob(obj.iv)}, key, _atob(obj.data));
+  return new TextDecoder().decode(dec);
+}
+
 async function exportData(){
   let __imgs=[];try{__imgs=await getAllImgs();}catch(_){}
   const __payload=Object.assign({},S,{__images:__imgs,__meta:{exportedAt:new Date().toISOString(),appVersion:APP_VERSION}});
-  const json=JSON.stringify(__payload,null,2);
+  let json=JSON.stringify(__payload,null,2);
+  
+  const pwd = prompt("Enter a password to ENCRYPT this backup, or leave blank to export normally:");
+  if (pwd === null) { toast('Export cancelled.'); return; } 
+  if (pwd.trim().length > 0) {
+    try { 
+      toast('Encrypting backup...');
+      json = await encryptData(json, pwd.trim()); 
+    } catch(e) { alert('Encryption failed.'); return; }
+  }
+
   const filename='system-backup-'+todayKey()+'.json';
 
-  // Capacitor Android — use Filesystem plugin to write to Downloads
   if(typeof window!=='undefined'&&window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform()){
     if(window.Capacitor.Plugins&&window.Capacitor.Plugins.Filesystem){
       const{Filesystem}=window.Capacitor.Plugins;
@@ -2081,7 +2113,6 @@ async function exportData(){
         encoding:'utf8',
         recursive:true
       }).then(result=>{
-        // Try to share the file if Share plugin available
         if(window.Capacitor.Plugins.Share){
           window.Capacitor.Plugins.Share.share({
             title:'The System — Backup',
@@ -2093,7 +2124,6 @@ async function exportData(){
           toast('Saved to Documents: '+filename);
         }
       }).catch(err=>{
-        // Filesystem failed — fall back to clipboard
         if(navigator.clipboard){
           navigator.clipboard.writeText(json).then(()=>toast('Copied to clipboard. Paste into a text file to save.'));
         } else {
@@ -2102,14 +2132,12 @@ async function exportData(){
       });
       return;
     }
-    // No Filesystem plugin — try clipboard
     if(navigator.clipboard){
       navigator.clipboard.writeText(json).then(()=>toast('Copied to clipboard. Paste into a text file.'));
     }
     return;
   }
 
-  // Web / Electron — standard anchor download
   const blob=new Blob([json],{type:'application/json'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
@@ -2121,20 +2149,35 @@ async function exportData(){
   URL.revokeObjectURL(url);
   toast('Exported.');
 }
+
 function importData(e){
   const file=e.target.files[0];if(!file)return;
   const r=new FileReader();
-  r.onload=function(ev){
+  r.onload=async function(ev){
     let parsed;
     try{parsed=JSON.parse(ev.target.result);}catch(err){toast('Import failed — not valid backup JSON.');e.target.value='';return;}
+    
+    if(parsed && parsed.isEncrypted) {
+      const pwd = prompt("This backup is ENCRYPTED. Enter your password:");
+      if(!pwd) { toast('Import cancelled.'); e.target.value=''; return; }
+      try {
+        const decStr = await decryptData(parsed, pwd.trim());
+        parsed = JSON.parse(decStr);
+        toast('Decrypted successfully.');
+      } catch(err) {
+        alert('Incorrect password or corrupted file.');
+        e.target.value=''; return;
+      }
+    }
+
     if(!parsed||typeof parsed!=='object'||Array.isArray(parsed)){toast('Import failed — not a System backup.');e.target.value='';return;}
     const images=Array.isArray(parsed.__images)?parsed.__images:null;
     Object.keys(parsed).forEach(function(k){if(k.indexOf('__')===0)delete parsed[k];});
     const keyCount=Object.keys(parsed).length;
     const hasShape=['wia-dc','su-tasks','problems','deadlines','theme','w-goals'].some(function(k){return k in parsed;});
-    if(!hasShape&&!confirm('This file does not look like a System backup ('+keyCount+' fields, none recognised). Import anyway and overwrite ALL current data?')){e.target.value='';return;}
+    if(!hasShape&&!confirm('This file does not look like a System backup. Import anyway and overwrite ALL current data?')){e.target.value='';return;}
     const curCount=Object.keys(S).length;
-    if(!confirm('This REPLACES all current data ('+curCount+' fields) with the backup ('+keyCount+' fields). Your current data is saved to an automatic restore point first. Continue?')){e.target.value='';return;}
+    if(!confirm('This REPLACES all current data with the backup. Your current data is saved to an automatic restore point first. Continue?')){e.target.value='';return;}
     idbAutosave('pre-import',S).then(function(){
       S=parsed;save();
       return images?restoreImages(images):null;
@@ -2341,6 +2384,7 @@ function togglePinSetup(){
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") checkLock();
 });
+
 /* MORE DRAWER */
 function openMore(){
   const pl = document.getElementById('pin-setup-label');
