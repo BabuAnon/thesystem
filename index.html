@@ -420,7 +420,47 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 .update-banner-actions{display:flex;gap:8px;flex-shrink:0;}
 .update-dismiss{background:none;border:none;color:var(--t3);font-size:20px;cursor:pointer;padding:2px 6px;line-height:1;min-height:32px;}
 @media(min-width:1280px){.update-banner{left:220px;}}
+/* ═══ PRIVACY LOCK ═══ */
+function checkLock(){
+  if(g('app-pin', null)){
+    document.getElementById('lock-screen').style.display = 'flex';
+    const pi = document.getElementById('pin-input');
+    if(pi) pi.focus();
+  }
+}
+function checkPIN(){
+  if(document.getElementById('pin-input').value === g('app-pin', '')){
+    document.getElementById('lock-screen').style.display = 'none';
+    document.getElementById('pin-error').style.display = 'none';
+    document.getElementById('pin-input').value = '';
+  } else {
+    document.getElementById('pin-error').style.display = 'block';
+    document.getElementById('pin-input').value = '';
+  }
+}
+function togglePinSetup(){
+  closeMore();
+  if(g('app-pin', null)){
+    if(confirm('Remove your current Privacy PIN?')){
+      s('app-pin', null);
+      toast('PIN removed. App is now unlocked.');
+    }
+  } else {
+    const p = prompt('Enter a numeric PIN (at least 4 digits):');
+    if(p && p.trim().length >= 4){
+      s('app-pin', p.trim());
+      checkLock(); 
+      toast('PIN set. The System is now locked.');
+    } else if(p) {
+      toast('PIN too short. Cancelled.');
+    }
+  }
+}
 
+// Auto-lock when the app is sent to the background (Mobile specific)
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") checkLock();
+});
 /* MORE DRAWER */
 .more-overlay{position:fixed;inset:0;background:rgba(0,0,0,0);z-index:290;display:none;transition:background .25s;}
 .more-overlay.open{display:block;background:rgba(0,0,0,.5);}
@@ -453,6 +493,13 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 </style>
 </head>
 <body>
+  <div id="lock-screen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:99999;flex-direction:column;align-items:center;justify-content:center;padding:20px;">
+  <div class="serif" style="font-size:24px;color:var(--t1);margin-bottom:8px;">The System is Locked</div>
+  <div style="font-size:13px;color:var(--t3);margin-bottom:24px;text-align:center;">Enter your PIN to access your data.</div>
+  <input type="password" inputmode="numeric" id="pin-input" class="inp" style="max-width:200px;text-align:center;font-size:28px;letter-spacing:12px;margin-bottom:16px;padding:12px;" placeholder="••••" onkeydown="if(event.key==='Enter')checkPIN()">
+  <button class="btn btn-g" style="width:100%;max-width:200px;" onclick="checkPIN()">Unlock</button>
+  <div id="pin-error" style="color:var(--red);font-size:12px;margin-top:16px;display:none;">Incorrect PIN.</div>
+</div>
 <!-- UPDATE BANNER -->
 <div class="update-banner" id="update-banner">
   <div class="update-banner-text">
@@ -903,6 +950,11 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
       <div class="more-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div>
       <div class="more-label">Why</div>
       <div class="more-desc">Your fuel</div>
+    </button>
+    <button class="more-item" onclick="togglePinSetup()">
+      <div class="more-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg></div>
+      <div class="more-label" id="pin-setup-label">Set Privacy PIN</div>
+      <div class="more-desc">Lock app on launch</div>
     </button>
   </div>
 </div>
@@ -2284,6 +2336,8 @@ function renderSparkline(){
 
 /* MORE DRAWER */
 function openMore(){
+  const pl = document.getElementById('pin-setup-label');
+  if(pl) pl.textContent = g('app-pin', null) ? 'Remove PIN Lock' : 'Set Privacy PIN';
   document.getElementById('more-overlay').classList.add('open');
   document.getElementById('more-drawer').classList.add('open');
 }
@@ -2463,6 +2517,7 @@ function applyPendingUpdate(){
 async function init(){
   await recoverState();
   load();runMigrations();initCrossTab();loadTheme();
+  checkLock();
   if(!g('onboarded',false))document.getElementById('onboard').classList.add('on');
   // Always open Today first — no exceptions
   showPg('today',document.getElementById('nb-today'));
