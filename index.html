@@ -525,6 +525,10 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="13" height="13" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
       <span id="desk-pin-label">Set Privacy PIN</span>
     </button>
+    <button class="desk-bottom-btn" onclick="toggleNotifications()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="13" height="13" stroke-width="1.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+      <span id="desk-notif-label">Enable Reminders</span>
+    </button>
     <button class="desk-bottom-btn" onclick="openInsights()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="13" height="13" stroke-width="1.5"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>
       Insights Dashboard
@@ -922,6 +926,11 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
       <div class="more-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg></div>
       <div class="more-label" id="pin-setup-label">Set Privacy PIN</div>
       <div class="more-desc">Lock app on launch</div>
+    </button>
+    <button class="more-item" onclick="toggleNotifications()">
+      <div class="more-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg></div>
+      <div class="more-label" id="notif-label">Enable Reminders</div>
+      <div class="more-desc">Daily check-in ping</div>
     </button>
     <button class="more-item" onclick="openInsights()">
       <div class="more-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg></div>
@@ -2399,7 +2408,75 @@ function openInsights(){
   `;
   openSheet('insights-sheet');
 }
+/* ═══ LOCAL NOTIFICATIONS ═══ */
+function checkNotifLabel() {
+  const active = g('notifs-active', false);
+  const text = active ? 'Disable Reminders' : 'Enable Reminders';
+  const ml = document.getElementById('notif-label');
+  const dl = document.getElementById('desk-notif-label');
+  if (ml) ml.textContent = text;
+  if (dl) dl.textContent = text;
+}
 
+async function toggleNotifications() {
+  try { closeMore(); } catch(e) {}
+  const active = g('notifs-active', false);
+  if (active) {
+    s('notifs-active', false);
+    toast('Daily reminders disabled.');
+    checkNotifLabel();
+    return;
+  }
+  
+  // Request Native Mobile Permission first (if packaged as app)
+  if (typeof window !== 'undefined' && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications) {
+    const p = await window.Capacitor.Plugins.LocalNotifications.requestPermissions();
+    if (p.display !== 'granted') { toast('Permission denied.'); return; }
+    // Schedule daily at 9:00 AM
+    await window.Capacitor.Plugins.LocalNotifications.schedule({
+      notifications: [{
+        title: 'The System', body: 'Read your Default Code. Check your goals.', id: 1, 
+        schedule: { on: { hour: 9, minute: 0 }, repeats: true }
+      }]
+    });
+    s('notifs-active', true);
+    toast('Reminders set for 9:00 AM.');
+    checkNotifLabel();
+  } 
+  // Fallback to Web Browser Notifications
+  else if ('Notification' in window) {
+    Notification.requestPermission().then(p => {
+      if (p === 'granted') {
+        s('notifs-active', true);
+        toast('Web reminders enabled (keep tab open/backgrounded).');
+        checkNotifLabel();
+      } else {
+        toast('Permission denied by browser.');
+      }
+    });
+  } else {
+    toast('Notifications not supported in this browser.');
+  }
+}
+
+// Background web loop to trigger notification if tab is open
+setInterval(() => {
+  if (!g('notifs-active', false)) return;
+  const d = new Date();
+  if (d.getHours() === 9 && d.getMinutes() === 0 && d.getSeconds() < 10) {
+    const last = g('last-notif-date', '');
+    const today = todayKey();
+    if (last !== today) {
+      s('last-notif-date', today);
+      // Skip if handled by native Capacitor plugin
+      if (typeof window !== 'undefined' && window.Capacitor && window.Capacitor.Plugins.LocalNotifications) return; 
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('The System', { body: 'Read your Default Code. Check your goals.' });
+      }
+    }
+  }
+}, 5000);
+  
 /* ═══ PRIVACY LOCK ═══ */
 function checkLock(){
   if(g('app-pin', null)){
@@ -2632,6 +2709,7 @@ async function init(){
   checkLock();
   const dpl = document.getElementById('desk-pin-label');
   if(dpl) dpl.textContent = g('app-pin', null) ? 'Remove PIN Lock' : 'Set Privacy PIN';
+  checkNotifLabel();
   if(!g('onboarded',false))document.getElementById('onboard').classList.add('on');
   // Always open Today first — no exceptions
   showPg('today',document.getElementById('nb-today'));
